@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post · Inkwell</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: "#FAF6EF",
+            surface: "#FFFFFF",
+            ink: "#23201C",
+            muted: "#6B635A",
+            clay: { DEFAULT: "#C4552D", dark: "#A6441F", soft: "#F3E0D6" },
+            sage: { DEFAULT: "#5F7A61", soft: "#E4ECE3" },
+            edge: "#E8E0D3",
+          },
+          fontFamily: {
+            display: ["Fraunces", "Georgia", "serif"],
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-paper font-sans text-ink">
+  <div id="navbar"></div>
+
+  <main class="mx-auto max-w-2xl space-y-8 px-4 py-10">
+    <a href="/home.html" class="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition hover:text-clay">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      All posts
+    </a>
+
+    <div id="postContainer">
+      <p class="py-12 text-center text-muted">Loading post…</p>
+    </div>
+
+    <section id="commentsSection" class="hidden space-y-4 pb-12">
+      <h2 class="font-display text-2xl font-semibold">
+        Comments <span id="commentsHeadingCount" class="font-sans text-base font-normal text-muted"></span>
+      </h2>
+
+      <div id="commentsList" class="space-y-3"></div>
+
+      <div id="emptyComments" class="hidden rounded-2xl border-2 border-dashed border-edge bg-surface/50 p-8 text-center text-muted">
+        No comments yet. Be the first to reply.
+      </div>
+
+      <form id="commentForm" class="flex items-center gap-3 rounded-2xl border border-edge bg-surface p-4 shadow-sm">
+        <input id="commentContent" type="text" required maxlength="2000" placeholder="Write a comment..."
+          class="w-full rounded-xl border border-edge bg-paper px-4 py-2.5 transition focus:border-clay focus:outline-none focus:ring-2 focus:ring-clay/25">
+        <button type="submit"
+          class="shrink-0 rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition hover:bg-clay disabled:opacity-50">
+          Reply
+        </button>
+      </form>
+      <div id="contentError" class="hidden text-sm text-clay"></div>
+    </section>
+  </main>
+
+  <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2"></div>
+
+  <script type="module" src="/js/navbar.js"></script>
+  <script type="module">
+    import {
+      requireAuth,
+      showToast,
+      setLoading,
+      clearErrors,
+      showFieldErrors,
+      escapeHtml,
+      formatRelativeTime,
+      initials,
+    } from "/js/auth.js";
+
+    const postId = new URLSearchParams(window.location.search).get("id");
+    const postContainer = document.getElementById("postContainer");
+    const commentsSection = document.getElementById("commentsSection");
+    const commentsList = document.getElementById("commentsList");
+    const emptyComments = document.getElementById("emptyComments");
+    const commentsHeadingCount = document.getElementById("commentsHeadingCount");
+    const commentForm = document.getElementById("commentForm");
+    const commentContent = document.getElementById("commentContent");
+
+    const heartFilled = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+    const heartOutline = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+
+    let currentPost = null;
+
+    function likeButtonHtml(post) {
+      const likedClasses = "border-clay-soft bg-clay-soft text-clay";
+      const idleClasses = "border-edge text-muted hover:border-clay hover:text-clay";
+
+      return `
+        <button id="likeBtn" class="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${post.liked_by_me ? likedClasses : idleClasses}">
+          ${post.liked_by_me ? heartFilled : heartOutline}
+          <span id="likeCount">${post.like_count}</span>
+          <span id="likeLabel">${post.like_count === 1 ? "like" : "likes"}</span>
+        </button>`;
+    }
+
+    function renderPost(post) {
+      postContainer.innerHTML = `
+        <article class="rounded-2xl border border-edge bg-surface p-6 shadow-sm">
+          <div class="flex items-center gap-3">
+            <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sage-soft text-sm font-semibold text-sage">${initials(post.username)}</span>
+            <div>
+              <p class="font-semibold">${escapeHtml(post.username)}</p>
+              <p class="text-xs text-muted">${formatRelativeTime(post.created_at)}</p>
+            </div>
+          </div>
+
+          <p class="mt-5 whitespace-pre-wrap font-display text-2xl leading-relaxed">${escapeHtml(post.content)}</p>
+
+          ${post.image ? `<img src="/uploads/${escapeHtml(post.image)}" alt="" class="mt-5 max-h-[32rem] w-full rounded-xl border border-edge object-cover">` : ""}
+
+          <div class="mt-6 flex items-center gap-4 border-t border-edge pt-5">
+            ${likeButtonHtml(post)}
+            <span class="text-sm text-muted">
+              <span id="commentCount">${post.comment_count}</span>
+              ${post.comment_count === 1 ? "comment" : "comments"}
+            </span>
+          </div>
+        </article>`;
+
+      document.getElementById("likeBtn").addEventListener("click", toggleLike);
+    }
+
+    function commentRow(comment) {
+      return `
+        <div class="flex gap-3">
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-clay-soft text-xs font-semibold text-clay">${initials(comment.username)}</span>
+          <div class="min-w-0 flex-1 rounded-2xl rounded-tl-sm border border-edge bg-surface px-4 py-3 shadow-sm">
+            <p class="text-sm">
+              <span class="font-semibold">${escapeHtml(comment.username)}</span>
+              <span class="ml-2 text-xs text-muted">${formatRelativeTime(comment.created_at)}</span>
+            </p>
+            <p class="mt-1 whitespace-pre-wrap text-ink">${escapeHtml(comment.content)}</p>
+          </div>
+        </div>`;
+    }
+
+    function renderComments(comments) {
+      commentsHeadingCount.textContent = `(${comments.length})`;
+
+      if (comments.length === 0) {
+        commentsList.innerHTML = "";
+        emptyComments.classList.remove("hidden");
+        return;
+      }
+
+      emptyComments.classList.add("hidden");
+      commentsList.innerHTML = comments.map(commentRow).join("");
+    }
+
+    async function toggleLike() {
+      const btn = document.getElementById("likeBtn");
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/posts/${postId}/like`, { method: "POST" });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data.error, "error");
+          return;
+        }
+
+        currentPost.liked_by_me = data.data.liked;
+        currentPost.like_count = data.data.like_count;
+        renderPost(currentPost);
+      } catch {
+        showToast("Something went wrong. Please try again.", "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadPost() {
+      if (!postId) {
+        postContainer.innerHTML = `<p class="py-12 text-center text-clay">No post id provided.</p>`;
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/posts/${postId}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data.error, "error");
+          postContainer.innerHTML = `
+            <div class="rounded-2xl border-2 border-dashed border-edge bg-surface/50 p-12 text-center">
+              <p class="font-display text-2xl font-semibold">Post not found</p>
+              <a href="/home.html" class="mt-4 inline-block text-sm font-semibold text-clay hover:underline">Back to home</a>
+            </div>`;
+          return;
+        }
+
+        currentPost = data.data.post;
+        document.title = `${currentPost.username}'s post · Inkwell`;
+        renderPost(currentPost);
+        renderComments(data.data.comments);
+        commentsSection.classList.remove("hidden");
+      } catch {
+        showToast("Could not load the post.", "error");
+      }
+    }
+
+    commentForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const btn = commentForm.querySelector("button[type=submit]");
+      setLoading(btn, true);
+
+      try {
+        const res = await fetch(`/api/posts/${postId}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: commentContent.value }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (data.errors) {
+            showFieldErrors(data.errors);
+          } else {
+            showToast(data.error, "error");
+          }
+          setLoading(btn, false);
+          return;
+        }
+
+        commentForm.reset();
+        setLoading(btn, false);
+
+        commentsList.insertAdjacentHTML("beforeend", commentRow(data.data));
+        emptyComments.classList.add("hidden");
+
+        const count = commentsList.children.length;
+        commentsHeadingCount.textContent = `(${count})`;
+        document.getElementById("commentCount").textContent = count;
+      } catch {
+        showToast("Something went wrong. Please try again.", "error");
+        setLoading(btn, false);
+      }
+    });
+
+    const user = await requireAuth();
+
+    if (user) {
+      loadPost();
+    }
+  </script>
+</body>
+</html>

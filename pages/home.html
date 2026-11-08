@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home · Inkwell</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: "#FAF6EF",
+            surface: "#FFFFFF",
+            ink: "#23201C",
+            muted: "#6B635A",
+            clay: { DEFAULT: "#C4552D", dark: "#A6441F", soft: "#F3E0D6" },
+            sage: { DEFAULT: "#5F7A61", soft: "#E4ECE3" },
+            edge: "#E8E0D3",
+          },
+          fontFamily: {
+            display: ["Fraunces", "Georgia", "serif"],
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-paper font-sans text-ink">
+  <div id="navbar"></div>
+
+  <main class="mx-auto max-w-2xl space-y-8 px-4 py-10">
+    <section>
+      <p class="text-xs font-semibold uppercase tracking-[0.25em] text-clay">The feed</p>
+      <h1 class="mt-2 font-display text-4xl font-semibold" id="welcomeMsg">Recent posts</h1>
+    </section>
+
+    <section class="rounded-2xl border border-edge bg-surface p-5 shadow-sm">
+      <form id="postForm" class="space-y-4">
+        <div class="flex gap-3">
+          <span id="meAvatar"
+            class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-clay-soft text-sm font-semibold text-clay"></span>
+          <textarea id="content" rows="3" required placeholder="Share something with the class..."
+            class="w-full resize-none rounded-xl border border-edge bg-paper px-4 py-3 transition focus:border-clay focus:outline-none focus:ring-2 focus:ring-clay/25"></textarea>
+        </div>
+        <div id="contentError" class="hidden pl-[3.25rem] text-sm text-clay"></div>
+
+        <div id="imagePreview" class="hidden pl-[3.25rem]">
+          <div class="relative inline-block overflow-hidden rounded-xl border border-edge">
+            <img id="previewImg" class="h-40 object-cover" alt="preview">
+            <button type="button" id="removeImage"
+              class="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-ink/80 text-sm text-paper transition hover:bg-clay">✕</button>
+          </div>
+        </div>
+        <div id="imageError" class="hidden pl-[3.25rem] text-sm text-clay"></div>
+
+        <div class="flex items-center justify-between pl-[3.25rem]">
+          <label for="image"
+            class="cursor-pointer rounded-full border border-edge px-4 py-1.5 text-sm font-medium text-muted transition hover:border-sage hover:text-sage">
+            Add image
+          </label>
+          <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden">
+          <button type="submit"
+            class="rounded-full bg-clay px-6 py-2 text-sm font-semibold text-paper transition hover:bg-clay-dark disabled:opacity-50">
+            Publish
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section id="feed" class="space-y-6">
+      <p class="py-12 text-center text-muted">Loading posts…</p>
+    </section>
+  </main>
+
+  <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2"></div>
+
+  <script type="module" src="/js/navbar.js"></script>
+  <script type="module">
+    import {
+      requireAuth,
+      showToast,
+      setLoading,
+      clearErrors,
+      showFieldErrors,
+      escapeHtml,
+      formatRelativeTime,
+      initials,
+    } from "/js/auth.js";
+
+    const feed = document.getElementById("feed");
+    const postForm = document.getElementById("postForm");
+    const contentInput = document.getElementById("content");
+    const imageInput = document.getElementById("image");
+    const imagePreview = document.getElementById("imagePreview");
+    const previewImg = document.getElementById("previewImg");
+    const removeImageBtn = document.getElementById("removeImage");
+
+    const heartFilled = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+    const heartOutline = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+    const chatIcon = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+
+    function postCard(post) {
+      return `
+        <article data-id="${post.id}" class="post-card cursor-pointer rounded-2xl border border-edge bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+          <div class="flex items-center gap-3">
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sage-soft text-sm font-semibold text-sage">${initials(post.username)}</span>
+            <div>
+              <p class="font-semibold">${escapeHtml(post.username)}</p>
+              <p class="text-xs text-muted">${formatRelativeTime(post.created_at)}</p>
+            </div>
+          </div>
+          <p class="mt-4 whitespace-pre-wrap text-lg leading-relaxed">${escapeHtml(post.content)}</p>
+          ${post.image ? `<img src="/uploads/${escapeHtml(post.image)}" alt="" class="mt-4 max-h-96 w-full rounded-xl border border-edge object-cover">` : ""}
+          <div class="mt-4 flex items-center gap-5 border-t border-edge pt-4 text-sm text-muted">
+            <span class="flex items-center gap-1.5 ${post.liked_by_me ? "text-clay" : ""}">
+              ${post.liked_by_me ? heartFilled : heartOutline}
+              ${post.like_count} ${post.like_count === 1 ? "like" : "likes"}
+            </span>
+            <span class="flex items-center gap-1.5">
+              ${chatIcon}
+              ${post.comment_count} ${post.comment_count === 1 ? "comment" : "comments"}
+            </span>
+          </div>
+        </article>`;
+    }
+
+    async function loadPosts() {
+      try {
+        const res = await fetch("/api/posts");
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data.error, "error");
+          return;
+        }
+
+        if (data.data.length === 0) {
+          feed.innerHTML = `
+            <div class="rounded-2xl border-2 border-dashed border-edge bg-surface/50 p-12 text-center">
+              <p class="font-display text-2xl font-semibold">Nothing published yet</p>
+              <p class="mt-2 text-muted">Be the first to share something.</p>
+            </div>`;
+          return;
+        }
+
+        feed.innerHTML = data.data.map(postCard).join("");
+
+        feed.querySelectorAll(".post-card").forEach((card) => {
+          card.addEventListener("click", () => {
+            window.location.href = `/post.html?id=${card.dataset.id}`;
+          });
+        });
+      } catch {
+        showToast("Could not load posts.", "error");
+      }
+    }
+
+    imageInput.addEventListener("change", () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+
+      previewImg.src = URL.createObjectURL(file);
+      imagePreview.classList.remove("hidden");
+    });
+
+    removeImageBtn.addEventListener("click", () => {
+      imageInput.value = "";
+      imagePreview.classList.add("hidden");
+      previewImg.src = "";
+    });
+
+    postForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const btn = postForm.querySelector("button[type=submit]");
+      setLoading(btn, true);
+
+      const formData = new FormData();
+      formData.append("content", contentInput.value);
+      if (imageInput.files[0]) {
+        formData.append("image", imageInput.files[0]);
+      }
+
+      try {
+        const res = await fetch("/api/posts", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (data.errors) {
+            showFieldErrors(data.errors);
+          } else {
+            showToast(data.error, "error");
+          }
+          setLoading(btn, false);
+          return;
+        }
+
+        showToast(data.message, "success");
+        postForm.reset();
+        imagePreview.classList.add("hidden");
+        previewImg.src = "";
+        setLoading(btn, false);
+        loadPosts();
+      } catch {
+        showToast("Something went wrong. Please try again.", "error");
+        setLoading(btn, false);
+      }
+    });
+
+    const user = await requireAuth();
+
+    if (user) {
+      document.getElementById("meAvatar").textContent = initials(user.username);
+      document.getElementById("welcomeMsg").textContent = `Hello, ${user.username}`;
+      loadPosts();
+    }
+  </script>
+</body>
+</html>

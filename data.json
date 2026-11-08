@@ -1,0 +1,73 @@
+{
+    "users": [
+        {
+            "id": 1,
+            "username": "ramez maher",
+            "email": "adolframez9@gmail.com",
+            "password": "$2b$10$XDtL9ivWUP/GSmea/t8p8OEhGr7YvZpfCoSYXfArW88WV4zpBCdMm",
+            "createdAt": "2026-11-08T13:51:12.979Z"
+        },
+        {
+            "id": 2,
+            "username": "thomas maged",
+            "email": "thomas@thomas.com",
+            "password": "$2b$10$Azv/2esgsCvHEYv2futIvux2AvDYH6msVF3VkyFxpQoKX9HxxoUze",
+            "createdAt": "2026-11-08T14:34:33.081Z"
+        }
+    ],
+    "sessions": {
+        "sid": "114dc0c9-757e-47f3-bfb7-77ab3aab766a",
+        "sess": {
+            "cookie": {
+                "originalMaxAge": 3600000,
+                "expires": "2026-11-08T15:34:41.523Z",
+                "secure": false,
+                "httpOnly": false,
+                "path": "/",
+                "sameSite": "lax"
+            },
+            "userId": 2,
+            "username": "thomas maged",
+            "userEmail": "thomas@thomas.com"
+        },
+        "expire": "2026-11-08T15:34:42.000Z"
+    },
+    "posts": [
+        {
+            "id": "39312d01-d792-48f4-a753-80a6c62bbaad",
+            "userId": 1,
+            "content": "nashwa",
+            "image": "3726efff-1353-4b7a-bdd7-be52484317b5.png",
+            "createdAt": "2026-11-08T13:51:31.819Z"
+        }
+    ],
+    "comments": [
+        {
+            "id": "9d043f5f-7208-4491-8062-b55da2a251df",
+            "postId": "39312d01-d792-48f4-a753-80a6c62bbaad",
+            "userId": 1,
+            "content": "rtgqetqetetqet",
+            "createdAt": "2026-11-08T14:30:58.413Z"
+        },
+        {
+            "id": "1239e3ca-82c2-4415-858b-190208ea826c",
+            "postId": "39312d01-d792-48f4-a753-80a6c62bbaad",
+            "userId": 1,
+            "content": "qetqetqetet",
+            "createdAt": "2026-11-08T14:31:00.382Z"
+        },
+        {
+            "id": "d8f1b458-4288-4b57-960c-7165f98012c8",
+            "postId": "39312d01-d792-48f4-a753-80a6c62bbaad",
+            "userId": 1,
+            "content": "qetqetgqegfgqegqegqeg",
+            "createdAt": "2026-11-08T14:31:02.817Z"
+        }
+    ],
+    "likes": [
+        {
+            "userId": 1,
+            "postId": "39312d01-d792-48f4-a753-80a6c62bbaad"
+        }
+    ]
+}
